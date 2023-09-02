@@ -21,6 +21,8 @@ namespace VehicleDeterioration
 		private readonly Logger logger = new Logger();
 
 		// Variables.
+		private readonly bool debug = false;
+
 		private List<string> blacklistedTypes = new List<string>()
 		{
 			"coolanttank",
@@ -44,9 +46,7 @@ namespace VehicleDeterioration
 			if (car.gameObject.GetComponent<Deteriorate>() == null)
 			{
 				Deteriorate deteriorate = car.gameObject.AddComponent<Deteriorate>();
-				deteriorate.SetTypes(new string[] { "body" });
-				deteriorate.SetLogger(logger);
-				deteriorate.SetRandom(random);
+				deteriorate.Initialise(logger, random, new string[] { "body" }, debug ? 1 : 0);
 			}
 
 			foreach (partslotscript slot in car.GetComponent<tosaveitemscript>().partslotscripts)
@@ -77,12 +77,8 @@ namespace VehicleDeterioration
 						return;
 				}
 
-				logger.Log(slot.tipus[0], Logger.LogLevel.Debug);
-
 				deteriorate = slot.part.gameObject.AddComponent<Deteriorate>();
-				deteriorate.SetTypes(slot.tipus);
-				deteriorate.SetLogger(logger);
-				deteriorate.SetRandom(random);
+				deteriorate.Initialise(logger, random, slot.tipus, debug ? 1 : 0);
 			}
 
 			foreach (var subslot in slot.part.tosaveitem.partslotscripts)

@@ -11,39 +11,29 @@ namespace VehicleDeterioration.Modules
 	[DisallowMultipleComponent]
 	internal class Deteriorate : MonoBehaviour
 	{
+		private Logger logger;
+
+		private Random random;
 		private Vector3 lastPosition;
 		private Transform customSpace;
 		private float distance = 0f;
 		private string[] types;
-		private Logger logger;
-		public bool deteriorated = false;
-		private Random random;
+		private bool deteriorated = false;
 		private bool isVehicle = false;
+		private int mode;
 
 		/// <summary>
-		/// Set the vehicle part types
+		/// Makeshift constructor as MonoBehaviour doesn't support constructors
 		/// </summary>
-		/// <param name="_types">The types to set</param>
-		public void SetTypes(string[] _types)
+		/// <param name="_logger">Logger instance</param>
+		/// <param name="_random">Random instance</param>
+		/// <param name="_types">Part types</param>
+		public void Initialise(Logger _logger, Random _random, string[] _types, int _mode)
 		{
-			types = _types;
-		}
-
-		/// <summary>
-		/// Set the logger instance
-		/// </summary>
-		/// <param name="_logger">Existing logger instance</param>
-		public void SetLogger(Logger _logger) { 
-			logger = _logger; 
-		}
-
-		/// <summary>
-		/// Set random generator
-		/// </summary>
-		/// <param name="_random">Existing random instance</param>
-		public void SetRandom(Random _random)
-		{
+			logger = _logger;
 			random = _random;
+			types = _types;
+			mode = _mode;
 		}
 
 		/// <summary>
@@ -78,51 +68,77 @@ namespace VehicleDeterioration.Modules
 
 		public void Update()
 		{
-			if (!isVehicle)
+			try
 			{
-				float distanceBetweenPoints = (customSpace.InverseTransformPoint(transform.position) - lastPosition).magnitude * (1f / 1000f);
-				distance += distanceBetweenPoints;
-			}
-			else
-				distance = gameObject.GetComponent<carscript>().distance;
-
-			float distanceCheck = GetDistanceCheck();
-
-			double distanceResult = Math.Round((float)Math.Round(distance, 2) % distanceCheck, 2);
-
-			if (!deteriorated && distance >= 0.01f && distanceResult == 0)
-			{
-				partconditionscript condition = gameObject.GetComponentInChildren<partconditionscript>();
-				if (condition != null)
+				if (!isVehicle)
 				{
-					deteriorated = true;
-					if (condition.state + 1 > 4)
+					float distanceBetweenPoints = (customSpace.InverseTransformPoint(transform.position) - lastPosition).magnitude * (1f / 1000f);
+					distance += distanceBetweenPoints;
+				}
+				else
+					distance = gameObject.GetComponent<carscript>().distance;
+
+				float distanceCheck = GetDistanceCheck();
+
+				double distanceResult = Math.Round((float)Math.Round(distance, 2) % distanceCheck, 2);
+
+				if (!deteriorated && distance >= 0.01f && distanceResult == 0)
+				{
+					partconditionscript condition = gameObject.GetComponentInChildren<partconditionscript>();
+					if (condition != null)
 					{
-						// 1 in 10 chance of part falling off at max rust.
-						if (random.Next(10) == 0)
+						deteriorated = true;
+						if (condition.state + 1 > 4)
 						{
-							// Ran out of conditions, drop the part off the vehicle.
-							partscript part = gameObject.GetComponentInChildren<partscript>();
-							part.FallOFf();
+							if (types[0] == "gumi")
+							{
+								// Tires have a 1 in 6 chance of bursting at max condition.
+								if (random.Next(6) == 0)
+								{
+									carscript car = gameObject.GetComponentInParent<carscript>();
+									Vector3 position = gameObject.transform.position;
+
+									partscript part = gameObject.GetComponentInChildren<partscript>();
+									part.FallOFf();
+
+									// Apply upwards force to the car at the position of the blown tire.
+									if (car != null)
+										car.RB.AddForceAtPosition(new Vector3(0f, 1500f, 0f), position, ForceMode.Impulse);
+								}
+							}
+							else
+							{
+								// 1 in 10 chance of part falling off at max condition.
+								if (random.Next(10) == 0)
+								{
+									// Ran out of conditions, drop the part off the vehicle.
+									partscript part = gameObject.GetComponentInChildren<partscript>();
+									part.FallOFf();
+								}
+							}
 						}
-					}
-					else
-					{
-						// 1 in 4 chance of part state changing.
-						if (random.Next(4) == 0)
+						else
 						{
-							condition.state += 1;
-							condition.Refresh();
+							// 1 in 4 chance of part state changing.
+							if (random.Next(4) == 0)
+							{
+								condition.state += 1;
+								condition.Refresh();
+							}
 						}
 					}
 				}
-			}
-			else if (deteriorated && distanceResult != 0)
-				deteriorated = false;
+				else if (deteriorated && distanceResult != 0)
+					deteriorated = false;
 
-			// Update last position.
-			if (!isVehicle)
-				lastPosition = customSpace.InverseTransformPoint(transform.position);
+				// Update last position.
+				if (!isVehicle)
+					lastPosition = customSpace.InverseTransformPoint(transform.position);
+			}
+			catch (Exception ex)
+			{
+				logger.Log($"Deteriorate update error - {ex}", Logger.LogLevel.Error);
+			}
 		}
 
 		/// <summary>
@@ -131,6 +147,10 @@ namespace VehicleDeterioration.Modules
 		/// <returns>Distance to check at as a float</returns>
 		private float GetDistanceCheck()
 		{
+			// Debug mode.
+			if (mode == 1)
+				return 0.5f;
+
 			switch (types[0])
 			{
 				// Tires.
